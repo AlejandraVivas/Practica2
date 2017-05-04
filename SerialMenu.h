@@ -18,7 +18,6 @@
 #include "I2C.h"
 
 #define ESCTERA 0x1B
-
 #define UART0FLAG 1
 #define UART3FLAG 2
 
@@ -69,22 +68,19 @@
 
 
 void PORTC_IRQHandler(void);
-
-void mainMenu0_task(void *pvParameters);
-void mainMenu3_task(void *pvParameters);
-void printingMenu(UART_Type *base);
 void createSemaphoreMutex(void);
 
 /*Uart 0*/
-void readingI2C_task(void *pvParameters);
-void writingI2C_task(void *pvParameters);
-void setHour_task(void *pvParameters);
-void setDate_task(void *pvParameters);
-void hourFormat_task(void *pvParameters);
+void readingI2C_task(void *arg);
+void writingI2C_task(void *arg);
+void setHour_task(void *arg);
+void setDate_task(void *arg);
+void hourFormat_task(void *arg);
 void readHour_task(void *pvParameters);
-void readDate_task(void *pvParameters);
-void chat_task(void *pvParameters);
-void eco_task(void *pvParameters);
+void readDate_task(void *arg);
+void chat_task(void *arg);
+void eco_task(void *arg);
+void Client_task(void *pvParameters);
 
 void getTime_task(void *pvParameters);
 void serialTimeLCD(void *pvParameters);
@@ -92,15 +88,15 @@ void serialTimeLCD(void *pvParameters);
 uint16_t asciiToHex(uint8_t *string);
 uint16_t asciiToDec(uint8_t *string);
 
-static void printingReadMemMenu(UART_Type *base);
-static void printingWriteMemMenu(UART_Type *base);
-static void printingSetHourMenu(UART_Type *base);
-static void printingSetDateMenu(UART_Type *base);
-static void printingSetFormatMenu(UART_Type *base);
-static void printingReadHourMenu(UART_Type *base);
-static void printingReadDateMenu(UART_Type *base);
-static void printingChatMenu(UART_Type *base);
-static void printingEcoMenu(UART_Type *base);
+//static void printingReadMemMenu(UART_Type *base);
+//static void printingWriteMemMenu(UART_Type *base);
+//static void printingSetHourMenu(UART_Type *base);
+//static void printingSetDateMenu(UART_Type *base);
+//static void printingSetFormatMenu(UART_Type *base);
+//static void printingReadHourMenu(UART_Type *base);
+//static void printingReadDateMenu(UART_Type *base);
+//static void printingChatMenu(UART_Type *base);
+//static void printingEcoMenu(UART_Type *base);
 
 
 

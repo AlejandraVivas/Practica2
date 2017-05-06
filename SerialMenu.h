@@ -71,6 +71,8 @@ void PORTC_IRQHandler(void);
 void createSemaphoreMutex(void);
 
 /*Uart 0*/
+void printingMenu(void *arg);
+void menuOptionSelection(void *arg);
 void readingI2C_task(void *arg);
 void writingI2C_task(void *arg);
 void setHour_task(void *arg);
@@ -80,7 +82,7 @@ void readHour_task(void *pvParameters);
 void readDate_task(void *arg);
 void chat_task(void *arg);
 void eco_task(void *arg);
-void Client_task(void *pvParameters);
+//void Client_task(void *pvParameters);
 
 void getTime_task(void *pvParameters);
 void serialTimeLCD(void *pvParameters);

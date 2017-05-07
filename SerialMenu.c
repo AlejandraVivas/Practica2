@@ -12,14 +12,7 @@
 #include "lwip/api.h"
 #include "myFiles/LCDNokia5110.h"
 
-uint8_t ecoFlag = FALSE;
 
-
-uint32_t bitNumber = 0;
-
-uint8_t clearingCommand[] = "\033[0;30;46m"; //clearing screen
-uint8_t blueScreeCommand[] = "\033[2J"; //Blue background and white letters
-uint8_t xandyPositioning[] = "\033[1;1H"; //x and y cursor position
 
 uint8_t menuString[] = "Menu\r\n";
 uint8_t optionString[] = "Opciones:\r\n";
@@ -32,14 +25,15 @@ uint8_t readHourString[] = "6) Leer Hora\r\n";
 uint8_t readDateString[] = "7) Leer Fecha\r\n";
 uint8_t chatString[] = "8) Comunicacion con terminal 2\r\n";
 uint8_t ecoString[] = "9) Eco en LCD\r\n";
-uint8_t NewLineString[] = "\r\n";
-uint8_t pressKeyToContinueString[] = "Presione cualquier letra para continuar\r";
+uint8_t NewLineString[] = "\n";
 
 
 /*Read Memory Menu*/
-uint8_t memoryDirectionString[] = "Direccion de Lectura: 0x\r";
-uint8_t lenghtToReadString[] = "Longitud en bytes:\r";
-uint8_t contentString[] = "Contenido:\r\n";
+uint8_t memoryDirectionString[] = "Direccion de Lectura:\n";
+uint8_t lenghtToReadString[] = "Longitud en bytes:\n";
+uint8_t memoryDirectionString2[] = "Direccion de Lectura: 0x\r";
+uint8_t lenghtToReadString2[] = "Longitud en bytes:\r";
+uint8_t contentString[] = "\nContenido:\r\n";
 
 /*Write Memory Menu*/
 uint8_t memoryWriteDirectionString[] = "Direccion de Escritura:\r";
@@ -78,6 +72,13 @@ uint8_t pointsString[] = ":";
 uint8_t lineString[] = "-";
 uint8_t twentyString[] = "-20";
 
+uint8_t errorString[] = "error";
+uint8_t HoraString[] = "Hora: ";
+uint8_t fechaString[] = "Fecha: ";
+uint8_t twentyCeroString[] = "-20";
+
+uint8_t exitString[] = "\nPresione e para salir \n\r";
+
 uint8_t adjust1[] = "\033[1;1H";
 uint8_t adjust2[] = "\033[2;1H";
 uint8_t adjust3[] = "\033[1;25H";
@@ -91,16 +92,6 @@ uint8_t adjut10[] = "\033[12;1H";
 uint8_t adjust11[] = "\033[4;1H";
 uint8_t adjust12[] = "\033[3;18H";
 uint8_t deleteLine[] = "\033[2K";
-
-
-uint8_t errorString[] = "error";
-uint8_t HoraString[] = "Hora: ";
-uint8_t fechaString[] = "Fecha: ";
-uint8_t twentyCeroString[] = "-20";
-
-
-uint8_t uart0Data;
-uint8_t uart3Data;
 
 uint8_t readHourUart0Flag;
 uint8_t readHourUart3Flag;
@@ -119,39 +110,10 @@ TaskHandle_t readDateHandle = NULL;
 TaskHandle_t chatHandle = NULL;
 TaskHandle_t ecoHandle = NULL;
 TaskHandle_t setNewDateHandle = NULL;
+
 extern TaskHandle_t lcdHandle;
 extern TaskHandle_t client_task_handler;
 
-uint8_t demoRingBufferUart0[16];
-volatile uint16_t txIndexUart0; /* Index of the data to send out. */
-volatile uint16_t rxIndexUart0; /* Index of the memory to save new arrived data. */
-
-uint8_t demoRingBufferUart3[16];
-volatile uint16_t txIndexUart3; /* Index of the data to send out. */
-volatile uint16_t rxIndexUart3; /* Index of the memory to save new arrived data. */
-
-BaseType_t *pxHigherPriorityTaskWoken; /**For receiving data*/
-BaseType_t *PriorityTaskWoken_4;
-
-EventGroupHandle_t Event_uartHandle0; /**Handler for menu options*/
-EventGroupHandle_t Event_uartHandle3; /**Handler for menu options of UART4*/
-
-EventGroupHandle_t NewDataUart0; /**Indicates that new data has arrived*///UART0
-EventGroupHandle_t NewDataUart3; /**Indicates that new data has arrived*///UART4//
-
-
-SemaphoreHandle_t Mutex_ReadMem;       //Option 1
-SemaphoreHandle_t Mutex_WriteMem;      //Option 2
-SemaphoreHandle_t Mutex_SetHour;       //Option 3
-SemaphoreHandle_t Mutex_SetDate;       //Option 4
-SemaphoreHandle_t Mutex_SetFormat;     //Option 5
-SemaphoreHandle_t Mutex_ReadHour;      //Option 6
-SemaphoreHandle_t Mutex_ReadDate;      //Option 7
-SemaphoreHandle_t Mutex_Eco;           //Option 9
-
-SemaphoreHandle_t xCountingSemaphore;
-
-BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
 /*get time*/
 uint16_t hexAddress;
@@ -165,31 +127,11 @@ uint8_t myRtcDataTime[5];
 uint8_t myRtcDataDate[5];
 /****/
 
+xSemaphoreHandle i2cProtected = FALSE;
+
 extern err_t err;
 
-void createSemaphoreMutex(void)
-{
-	vSemaphoreCreateBinary(NewDataUart0); /**Semaphore for indicating when new data arrives*/
-	vSemaphoreCreateBinary(NewDataUart3); /**Semaphore for indicating when new data arrives*/
-	xSemaphoreTake(NewDataUart0,1);
-	xSemaphoreTake(NewDataUart3,1);
 
-	Event_uartHandle0 = xEventGroupCreate();
-	Event_uartHandle3 = xEventGroupCreate();
-
-	/**Mutexs to prevent two terminals entering the same menu*/
-	Mutex_ReadMem  = xSemaphoreCreateMutex();  //Option1
-	Mutex_WriteMem = xSemaphoreCreateMutex();  //Option 2
-	Mutex_SetHour  = xSemaphoreCreateMutex();  //Option 3
-	Mutex_SetDate  = xSemaphoreCreateMutex();  //Option 4
-	Mutex_SetFormat = xSemaphoreCreateMutex(); //Option 5
-	Mutex_ReadHour  = xSemaphoreCreateMutex(); //Option 6
-	Mutex_ReadDate  = xSemaphoreCreateMutex(); //Option 7
-	Mutex_Eco       = xSemaphoreCreateMutex(); //Option 9
-
-	//xCountingSemaphore = xSemaphoreCreateCounting(10,0);
-
-}
 
 
 //void PORTC_IRQHandler(void)
@@ -225,6 +167,9 @@ void printingMenu(void *arg)
 {
 	struct netconn *newconn;
 	newconn = (struct netconn*)(arg);
+
+	i2cProtected = xSemaphoreCreateMutex();
+
 	netconn_write(newconn,menuString,sizeof(menuString), 0x01);
 	netconn_write(newconn,optionString,sizeof(optionString), 0x01);
 	netconn_write(newconn,readMemoryString,sizeof(readMemoryString), 0x01);
@@ -258,6 +203,7 @@ void menuOptionSelection(void *arg)
 		readingI2C_task((void *)newconn);
 		break;
 	case '2':
+		writingI2C_task((void *)newconn);
 		break;
 	case '3':
 		PRINTF("HOLA3");
@@ -336,11 +282,24 @@ void readingI2C_task(void *arg)
 						key_pressedMemory = FALSE;
 						readAddress = asciiToHex(testAddress);
 						readLenght = asciiToHex(lengthToRead);
-
-						I2C_MemoryRead(I2C0, MEM_DEVICE_ADD,readAddress,readValue, readLenght);
+						netconn_write(newconn, memoryDirectionString2, sizeof(memoryDirectionString2), NETCONN_COPY);
+						netconn_write(newconn, testAddress, sizeof(testAddress), NETCONN_COPY);
+						netconn_write(newconn, NewLineString, sizeof(NewLineString), NETCONN_COPY);
+						netconn_write(newconn, lenghtToReadString2, sizeof(lenghtToReadString2), NETCONN_COPY);
+						netconn_write(newconn, lengthToRead, sizeof(lengthToRead), NETCONN_COPY);
+						for(;;)
+						{
+							if(xSemaphoreTake(i2cProtected,1000))
+							{
+								I2C_MemoryRead(I2C0, MEM_DEVICE_ADD,readAddress,readValue, readLenght);
+								xSemaphoreGive(i2cProtected);
+								vTaskDelay(100);
+								break;
+							}
+						}
 						netconn_write(newconn,contentString , sizeof(contentString), NETCONN_COPY);
 						netconn_write(newconn, readValue, readLenght, NETCONN_COPY);
-						netconn_write(newconn, "Press e to exit\n\r", 17, NETCONN_COPY);
+						netconn_write(newconn, exitString, sizeof(exitString), NETCONN_COPY);
 					}
 
 				}
@@ -352,103 +311,101 @@ void readingI2C_task(void *arg)
 				netbuf_delete(buf);
 			}
 		}
-		vTaskDelay(1);
 	}
 }
 
 void writingI2C_task(void *arg)
 {
+	struct netconn *newconn;
+	newconn = (struct netconn*)(arg);
+	uint8_t option;
+	struct netbuf *buf;
+	void *data;
+	uint16_t len;
 	static uint16_t readAddress;
 	static uint32_t readLenght;
-	uint8_t data[200];
+	uint8_t dataWrited[200];
 	uint8_t dataIn[7];
 	static uint8_t dataLong[3];
 	static uint8_t writeDirection[4];
-	static uint8_t received_data;
-	UART_Type *currentUart;
 	uint8_t counter = 0;
 	uint8_t dataCounter = 0;
 	uint8_t key_pressedMemory = TRUE;
 	uint8_t key_pressedDataIn = FALSE;
 	for(;;)
 	{
-		if(MENU_OP2 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP2 == xEventGroupGetBits(Event_uartHandle3))
+		if(TRUE == key_pressedMemory)
 		{
-			if(xSemaphoreTake(NewDataUart0, portMAX_DELAY))
+			while((err = netconn_recv(newconn, &buf)) == ERR_OK)
 			{
-				received_data = uart0Data;
-				currentUart = DEMO_UART0;
-				UART_WriteByte(currentUart, received_data);
-
+				netbuf_data(buf, &data, &len);
+				option = *(char*)data;
+				dataIn[counter] = option;
+				counter++;
 				if(TRUE == key_pressedDataIn)
 				{
-					if(ENTERTERA != received_data)
-					{
-						data[dataCounter] = received_data;
-						dataCounter++;
-					}
-					else if(ENTERTERA == received_data)
-					{
-						dataCounter = 0;
-						delay(100);
-						I2C_MemoryWrite(I2C0, MEM_DEVICE_ADD, readAddress, data, readLenght);
-						key_pressedDataIn = 0;
-					}
-				}
-
-				else if(TRUE == key_pressedMemory)
-				{
-					if(ENTERTERA != received_data)
-					{
-						dataIn[counter] = received_data;
-						counter++;
-
-						if(counter == 4)
+					dataWrited[dataCounter] = option;
+					dataCounter++;
+					if('q' == option){
+						for(;;)
 						{
-							writeDirection[0] = dataIn[0];
-							writeDirection[1] = dataIn[1];
-							writeDirection[2] = dataIn[2];
-							writeDirection[3] = dataIn[3];
-
-							readAddress = asciiToHex(writeDirection);
-							UART_WriteBlocking(currentUart, adjust5, sizeof(adjust5) / sizeof(adjust5[0]));
+							if(xSemaphoreTake(i2cProtected,1000))
+							{
+								I2C_MemoryWrite(I2C0, MEM_DEVICE_ADD, readAddress, dataWrited, readLenght);
+								xSemaphoreGive(i2cProtected);
+								vTaskDelay(100);
+								break;
+							}
 						}
 					}
-					else if(ENTERTERA == received_data)
+
+					if('e' == option)
 					{
-						counter = 0;
-
-						UART_WriteBlocking(currentUart, adjust11, sizeof(adjust11) / sizeof(adjust11[0]));
-						dataLong[0] = dataIn[4];
-						dataLong[1] = dataIn[5];
-						dataLong[2] = dataIn[6];
-
-						readLenght =  asciiToHex(dataLong);
-						key_pressedMemory = FALSE;
-						key_pressedDataIn = TRUE;
+						printingMenu((void *)newconn);
 					}
 				}
+
+
+				else if(counter == 4)
+				{
+					writeDirection[0] = dataIn[0];
+					writeDirection[1] = dataIn[1];
+					writeDirection[2] = dataIn[2];
+					writeDirection[3] = dataIn[3];
+
+					delay(65000);
+					readAddress = asciiToHex(writeDirection);
+					netconn_write(newconn, lenghtToReadString, sizeof(lenghtToReadString), NETCONN_COPY);
+
+				}
+				else if(counter == 7)
+				{
+					dataLong[0] = dataIn[4];
+					dataLong[1] = dataIn[5];
+					dataLong[2] = dataIn[6];
+				}
+
+				if('*' == option)
+				{
+					readLenght =  asciiToHex(dataLong);
+					key_pressedMemory = FALSE;
+					key_pressedDataIn = TRUE;
+				}
+				while (netbuf_next(buf) >= 0);
+				netbuf_delete(buf);
 			}
 		}
-		vTaskDelay(10);
-		taskYIELD();
 	}
 }
 
 void setHour_task(void *arg)
 {
-	static uint8_t received_data;
-	UART_Type *currentUart;
+
 	static uint8_t counter = 0;
 	static uint8_t myRtcData[5];
 	for(;;)
 	{
-		if(MENU_OP3 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP3 == xEventGroupGetBits(Event_uartHandle3))
-		{
-			if(xSemaphoreTake(NewDataUart0, portMAX_DELAY))
-			{
-				received_data = uart0Data;
-				currentUart = DEMO_UART0;
+
 				if(ENTERTERA != received_data)
 				{
 					UART_WriteByte(currentUart, received_data);
@@ -464,353 +421,330 @@ void setHour_task(void *arg)
 					delay(1000);
 					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD,0x00, (0x80 | ((myRtcDataTime[4]-ASCII_NUMBER_MASK))<<4 | (myRtcDataTime[5]-ASCII_NUMBER_MASK)));
 				}
-			}
-			else if(xSemaphoreTake(NewDataUart3, portMAX_DELAY))
-			{
-				received_data = uart3Data;
-				currentUart = DEMO_UART3;
-				if(ENTERTERA != received_data)
-				{
-					UART_WriteByte(currentUart, received_data);
-					myRtcDataTime[counter] = received_data;
-					counter++;
-				}
-				else if(ENTERTERA == received_data)
-				{
-					counter = 0;
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02, ((myRtcDataTime[0]-ASCII_NUMBER_MASK))<<4 | (myRtcDataTime[1]-ASCII_NUMBER_MASK));
-					delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x01, ((myRtcDataTime[2]-ASCII_NUMBER_MASK))<<4 | (myRtcDataTime[3]-ASCII_NUMBER_MASK));
-					delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD,0x00, (0x80 | ((myRtcDataTime[4]-ASCII_NUMBER_MASK))<<4 | (myRtcDataTime[5]-ASCII_NUMBER_MASK)));
-				}
-			}
-
-
-		}
 		vTaskDelay(1);
 		taskYIELD();
 	}
 }
 
-void setDate_task(void *arg)
-{
-	static uint8_t received_data;
-	UART_Type *currentUart;
-	static uint8_t counter = 0;
-	for(;;)
-	{
-		if(MENU_OP4 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP4 == xEventGroupGetBits(Event_uartHandle3))
-		{
-			if(xSemaphoreTake(NewDataUart0, portMAX_DELAY))
-			{
-				received_data = uart0Data;
-				currentUart = DEMO_UART0;
-				if(ENTERTERA != received_data)
-				{
-					UART_WriteByte(currentUart, received_data);
-					myRtcDataDate[counter] = received_data;
-					counter++;
-				}
-				else if(ENTERTERA == received_data)
-				{
-					counter = 0;
-
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x04, ((myRtcDataDate[0]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[1]-ASCII_NUMBER_MASK));
-					delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x05, ((myRtcDataDate[2]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[3]-ASCII_NUMBER_MASK));
-					delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD,0x06, ((myRtcDataDate[4]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[5]-ASCII_NUMBER_MASK));
-				}
-			}
-			else if(xSemaphoreTake(NewDataUart3, portMAX_DELAY))
-			{
-				received_data = uart3Data;
-				currentUart = DEMO_UART3;
-				if(ENTERTERA != received_data)
-				{
-					UART_WriteByte(currentUart, received_data);
-					myRtcDataDate[counter] = received_data;
-					counter++;
-				}
-				else if(ENTERTERA == received_data)
-				{
-					counter = 0;
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x04, ((myRtcDataDate[0]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[1]-ASCII_NUMBER_MASK));
-					delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x05, ((myRtcDataDate[2]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[3]-ASCII_NUMBER_MASK));
-					delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD,0x06, ((myRtcDataDate[4]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[5]-ASCII_NUMBER_MASK));
-				}
-			}
-
-		}
-		vTaskDelay(1);
-		taskYIELD();
-	}
-}
-
-void hourFormat_task(void *arg)
-{
-	static uint8_t received_data;
-	UART_Type *currentUart;
-	uint8_t twelveHoursFormat = 0x40;
-	uint8_t twentyFourHoursFormat = 0x00;
-	for(;;)
-	{
-		if(MENU_OP5 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP5 == xEventGroupGetBits(Event_uartHandle3))
-		{
-			if(xSemaphoreTake(NewDataUart0, portMAX_DELAY))
-			{
-				received_data = uart0Data;
-				currentUart = DEMO_UART0;
-				UART_WriteByte(currentUart, received_data);
-				if(received_data == 0x31)
-				{
-					HOURS_REG_SIZE = (twelveHoursFormat &  (asciiDate[5] | asciiDate[4]) );
-					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x00);
-					//	delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02,HOURS_REG_SIZE);
-					delay(1000);
-					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x80);
-				}
-				else if(received_data == 0x32)
-				{
-					HOURS_REG_SIZE = ( 0xBF &  (asciiDate[5] | asciiDate[4]));
-					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x00);
-					//delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02, HOURS_REG_SIZE);
-					delay(1000);
-					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x80);
-				}
-			}
-			else if(xSemaphoreTake(NewDataUart3, portMAX_DELAY))
-			{
-				received_data = uart3Data;
-				currentUart = DEMO_UART3;
-				UART_WriteByte(currentUart, received_data);
-				if(received_data == 0x31)
-				{
-					HOURS_REG_SIZE = (0x5F |  (asciiDate[5] | asciiDate[4]));
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02,HOURS_REG_SIZE);
-					delay(1000);
-				}
-				else if(received_data == 0x32)
-				{
-					HOURS_REG_SIZE = (0x1F |  (asciiDate[5] | asciiDate[4]));
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02,HOURS_REG_SIZE);
-					delay(1000);
-				}
-			}
-		}
-		vTaskDelay(1);
-		taskYIELD();
-	}
-}
-
-void readHour_task(void *pvParameters)
-{
-	static uint8_t received_data;
-	UART_Type *currentUart;
-	static uint8_t uart0;
-	static uint8_t uart3;
-	uart0 = readHourUart0Flag;
-	uart3 = readHourUart3Flag;
-	for(;;)
-	{
-		if(MENU_OP6 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP6 == xEventGroupGetBits(Event_uartHandle3))
-		{
-			if(uart0 == 1)
-			{
-				taskENTER_CRITICAL();
-				readHourUart0Flag = 0;
-				taskEXIT_CRITICAL();
-				received_data = uart0Data;
-				currentUart = DEMO_UART0;
-				if(ESCTERA != received_data)
-				{
-					UART_WriteByte(currentUart, asciiDate[5]);
-					UART_WriteByte(currentUart, asciiDate[4]);
-					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
-					UART_WriteByte(currentUart, asciiDate[3]);
-					UART_WriteByte(currentUart, asciiDate[2]);
-					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
-					UART_WriteByte(currentUart, asciiDate[1]);
-					UART_WriteByte(currentUart, asciiDate[0]);
-					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
-					vTaskDelay(1000);
-				}
-			}
-			if(uart3 == 1)
-			{
-				taskENTER_CRITICAL();
-				readHourUart3Flag = 0;
-				taskEXIT_CRITICAL();
-				received_data = uart3Data;
-				currentUart = DEMO_UART3;
-				if(ESCTERA != received_data)
-				{
-					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[5]);
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[4]);
-					delay(100);
-					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[3]);
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[2]);
-					delay(100);
-					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[1]);
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[0]);
-					delay(100);
-					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
-					vTaskDelay(1000);
-				}
-			}
-		}
-		vTaskDelay(100);
-		taskYIELD();
-	}
-}
-
-void readDate_task(void *arg)
-{
-	static uint8_t received_data;
-	UART_Type *currentUart;
-	for(;;)
-	{
-		if(MENU_OP7 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP7 == xEventGroupGetBits(Event_uartHandle3))
-		{
-			if(readDateUart0Flag  == 1)
-			{
-				received_data = uart0Data;
-				readDateUart0Flag = 0;
-				currentUart = DEMO_UART0;
-				if(ESCTERA != received_data)
-				{
-					UART_WriteByte(currentUart, asciiDate[7]);
-					UART_WriteByte(currentUart, asciiDate[6]);
-					UART_WriteBlocking(currentUart, lineString, sizeof(lineString) / sizeof(lineString[0]));
-					UART_WriteByte(currentUart, asciiDate[9]);
-					UART_WriteByte(currentUart, asciiDate[8]);
-					UART_WriteBlocking(currentUart, twentyString, sizeof(twentyString) / sizeof(twentyString[0]));
-					UART_WriteByte(currentUart, asciiDate[11]);
-					UART_WriteByte(currentUart, asciiDate[10]);
-					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
-					vTaskDelay(1000);
-				}
-			}
-			else if(readDateUart3Flag == 1)
-			{
-				readDateUart3Flag = 0;
-				currentUart = DEMO_UART3;
-				if(ESCTERA != received_data)
-				{
-					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[7]);
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[6]);
-					delay(100);
-					UART_WriteBlocking(currentUart, lineString, sizeof(lineString) / sizeof(lineString[0]));
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[9]);
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[8]);
-					delay(100);
-					UART_WriteBlocking(currentUart, twentyString, sizeof(twentyString) / sizeof(twentyString[0]));
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[11]);
-					delay(100);
-					UART_WriteByte(currentUart, asciiDate[10]);
-					delay(100);
-					UART_WriteBlocking(currentUart, adjust4, sizeof(adjust4) / sizeof(adjust4[0]));
-					vTaskDelay(1000);
-				}
-			}
-		}
-		vTaskDelay(1);
-		taskYIELD();
-	}
-}
-
-void chat_task(void *arg)
-{
-	static uint8_t received_data;
-	UART_Type *currentUart;
-	static uint8_t testBufferOne[60] = {0};
-	static uint8_t testBufferFour[60] = {0};
-	static uint8_t TerminalOneString[] = "Terminal 1:\r\n";
-	static uint8_t TerminalTwoString[] = "Terminal 2:\r\n";
-	static uint8_t bufferOneCounter = 0;
-	static uint8_t bufferFourCounter = 0;
-	for(;;)
-	{
-		if(MENU_OP8 == xEventGroupGetBits(Event_uartHandle0) && (MENU_OP8 == xEventGroupGetBits(Event_uartHandle3)))
-		{
-			if(xSemaphoreTake(NewDataUart0, portMAX_DELAY))
-			{
-				received_data = uart0Data;
-				currentUart = DEMO_UART0;
-				if(ENTERTERA != uart0Data)
-				{
-					UART_WriteByte(DEMO_UART0, uart0Data);
-					testBufferOne[bufferOneCounter] = uart0Data;
-					bufferOneCounter++;
-				}
-				else if(ENTERTERA == uart0Data)
-				{
-					bufferOneCounter = 0;
-					UART_WriteBlocking(DEMO_UART0, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
-					UART_WriteBlocking(DEMO_UART0, TerminalOneString, sizeof(TerminalOneString) / sizeof(TerminalOneString[0]));
-					UART_WriteBlocking(DEMO_UART0, testBufferOne, sizeof(testBufferOne) / sizeof(testBufferOne[0]));
-					UART_WriteBlocking(DEMO_UART0, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
-					UART_WriteBlocking(DEMO_UART3, TerminalOneString, sizeof(TerminalOneString) / sizeof(TerminalOneString[0]));
-					UART_WriteBlocking(DEMO_UART3, testBufferOne, sizeof(testBufferOne) / sizeof(testBufferOne[0]));
-					UART_WriteBlocking(DEMO_UART3, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
-				}
-			}
-			if(xSemaphoreTake(NewDataUart3, portMAX_DELAY))
-			{
-				received_data = uart3Data;
-				currentUart = DEMO_UART3;
-				if(ENTERTERA != uart3Data)
-				{
-					UART_WriteByte(DEMO_UART3, uart3Data);
-					testBufferFour[bufferFourCounter] = uart3Data;
-					bufferFourCounter++;
-				}
-				else if(ENTERTERA == uart3Data)
-				{
-					bufferFourCounter = 0;
-					UART_WriteBlocking(DEMO_UART3, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
-					UART_WriteBlocking(DEMO_UART3, TerminalTwoString, sizeof(TerminalTwoString) / sizeof(TerminalTwoString[0]));
-					UART_WriteBlocking(DEMO_UART3, testBufferFour, sizeof(testBufferFour) / sizeof(testBufferFour[0]));
-					UART_WriteBlocking(DEMO_UART3, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
-					UART_WriteBlocking(DEMO_UART0, TerminalTwoString, sizeof(TerminalTwoString) / sizeof(TerminalTwoString[0]));
-					UART_WriteBlocking(DEMO_UART0, testBufferFour, sizeof(testBufferFour) / sizeof(testBufferFour[0]));
-					UART_WriteBlocking(DEMO_UART0, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
-				}
-			}
-
-			if((ESCTERA == uart0Data) && (ESCTERA == uart3Data))
-			{
-				UART_WriteBlocking(DEMO_UART0, TerminalOneEndingString, sizeof(TerminalOneEndingString) / sizeof(TerminalOneEndingString[0]));
-				UART_WriteBlocking(DEMO_UART0, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
-				UART_WriteBlocking(DEMO_UART3, TerminalOneEndingString, sizeof(TerminalOneEndingString) / sizeof(TerminalOneEndingString[0]));
-				UART_WriteBlocking(DEMO_UART3, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
-				delay(600000);
-				vTaskDelete(chatHandle);
-			}
-		}
-		vTaskDelay(100);
-	}
-}
+//
+//void setDate_task(void *arg)
+//{
+//	static uint8_t received_data;
+//	UART_Type *currentUart;
+//	static uint8_t counter = 0;
+//	for(;;)
+//	{
+//		if(MENU_OP4 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP4 == xEventGroupGetBits(Event_uartHandle3))
+//		{
+//			if(xSemaphoreTake(NewDataUart0, portMAX_DELAY))
+//			{
+//				received_data = uart0Data;
+//				currentUart = DEMO_UART0;
+//				if(ENTERTERA != received_data)
+//				{
+//					UART_WriteByte(currentUart, received_data);
+//					myRtcDataDate[counter] = received_data;
+//					counter++;
+//				}
+//				else if(ENTERTERA == received_data)
+//				{
+//					counter = 0;
+//
+//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x04, ((myRtcDataDate[0]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[1]-ASCII_NUMBER_MASK));
+//					delay(1000);
+//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x05, ((myRtcDataDate[2]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[3]-ASCII_NUMBER_MASK));
+//					delay(1000);
+//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD,0x06, ((myRtcDataDate[4]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[5]-ASCII_NUMBER_MASK));
+//				}
+//			}
+//			else if(xSemaphoreTake(NewDataUart3, portMAX_DELAY))
+//			{
+//				received_data = uart3Data;
+//				currentUart = DEMO_UART3;
+//				if(ENTERTERA != received_data)
+//				{
+//					UART_WriteByte(currentUart, received_data);
+//					myRtcDataDate[counter] = received_data;
+//					counter++;
+//				}
+//				else if(ENTERTERA == received_data)
+//				{
+//					counter = 0;
+//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x04, ((myRtcDataDate[0]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[1]-ASCII_NUMBER_MASK));
+//					delay(1000);
+//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x05, ((myRtcDataDate[2]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[3]-ASCII_NUMBER_MASK));
+//					delay(1000);
+//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD,0x06, ((myRtcDataDate[4]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[5]-ASCII_NUMBER_MASK));
+//				}
+//			}
+//
+//		}
+//		vTaskDelay(1);
+//		taskYIELD();
+//	}
+//}
+//
+//void hourFormat_task(void *arg)
+//{
+//	static uint8_t received_data;
+//	UART_Type *currentUart;
+//	uint8_t twelveHoursFormat = 0x40;
+//	uint8_t twentyFourHoursFormat = 0x00;
+//	for(;;)
+//	{
+//		if(MENU_OP5 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP5 == xEventGroupGetBits(Event_uartHandle3))
+//		{
+//			if(xSemaphoreTake(NewDataUart0, portMAX_DELAY))
+//			{
+//				received_data = uart0Data;
+//				currentUart = DEMO_UART0;
+//				UART_WriteByte(currentUart, received_data);
+//				if(received_data == 0x31)
+//				{
+//					HOURS_REG_SIZE = (twelveHoursFormat &  (asciiDate[5] | asciiDate[4]) );
+//					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x00);
+//					//	delay(1000);
+//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02,HOURS_REG_SIZE);
+//					delay(1000);
+//					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x80);
+//				}
+//				else if(received_data == 0x32)
+//				{
+//					HOURS_REG_SIZE = ( 0xBF &  (asciiDate[5] | asciiDate[4]));
+//					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x00);
+//					//delay(1000);
+//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02, HOURS_REG_SIZE);
+//					delay(1000);
+//					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x80);
+//				}
+//			}
+//			else if(xSemaphoreTake(NewDataUart3, portMAX_DELAY))
+//			{
+//				received_data = uart3Data;
+//				currentUart = DEMO_UART3;
+//				UART_WriteByte(currentUart, received_data);
+//				if(received_data == 0x31)
+//				{
+//					HOURS_REG_SIZE = (0x5F |  (asciiDate[5] | asciiDate[4]));
+//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02,HOURS_REG_SIZE);
+//					delay(1000);
+//				}
+//				else if(received_data == 0x32)
+//				{
+//					HOURS_REG_SIZE = (0x1F |  (asciiDate[5] | asciiDate[4]));
+//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02,HOURS_REG_SIZE);
+//					delay(1000);
+//				}
+//			}
+//		}
+//		vTaskDelay(1);
+//		taskYIELD();
+//	}
+//}
+//
+//void readHour_task(void *pvParameters)
+//{
+//	static uint8_t received_data;
+//	UART_Type *currentUart;
+//	static uint8_t uart0;
+//	static uint8_t uart3;
+//	uart0 = readHourUart0Flag;
+//	uart3 = readHourUart3Flag;
+//	for(;;)
+//	{
+//		if(MENU_OP6 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP6 == xEventGroupGetBits(Event_uartHandle3))
+//		{
+//			if(uart0 == 1)
+//			{
+//				taskENTER_CRITICAL();
+//				readHourUart0Flag = 0;
+//				taskEXIT_CRITICAL();
+//				received_data = uart0Data;
+//				currentUart = DEMO_UART0;
+//				if(ESCTERA != received_data)
+//				{
+//					UART_WriteByte(currentUart, asciiDate[5]);
+//					UART_WriteByte(currentUart, asciiDate[4]);
+//					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
+//					UART_WriteByte(currentUart, asciiDate[3]);
+//					UART_WriteByte(currentUart, asciiDate[2]);
+//					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
+//					UART_WriteByte(currentUart, asciiDate[1]);
+//					UART_WriteByte(currentUart, asciiDate[0]);
+//					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
+//					vTaskDelay(1000);
+//				}
+//			}
+//			if(uart3 == 1)
+//			{
+//				taskENTER_CRITICAL();
+//				readHourUart3Flag = 0;
+//				taskEXIT_CRITICAL();
+//				received_data = uart3Data;
+//				currentUart = DEMO_UART3;
+//				if(ESCTERA != received_data)
+//				{
+//					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[5]);
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[4]);
+//					delay(100);
+//					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[3]);
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[2]);
+//					delay(100);
+//					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[1]);
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[0]);
+//					delay(100);
+//					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
+//					vTaskDelay(1000);
+//				}
+//			}
+//		}
+//		vTaskDelay(100);
+//		taskYIELD();
+//	}
+//}
+//
+//void readDate_task(void *arg)
+//{
+//	static uint8_t received_data;
+//	UART_Type *currentUart;
+//	for(;;)
+//	{
+//		if(MENU_OP7 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP7 == xEventGroupGetBits(Event_uartHandle3))
+//		{
+//			if(readDateUart0Flag  == 1)
+//			{
+//				received_data = uart0Data;
+//				readDateUart0Flag = 0;
+//				currentUart = DEMO_UART0;
+//				if(ESCTERA != received_data)
+//				{
+//					UART_WriteByte(currentUart, asciiDate[7]);
+//					UART_WriteByte(currentUart, asciiDate[6]);
+//					UART_WriteBlocking(currentUart, lineString, sizeof(lineString) / sizeof(lineString[0]));
+//					UART_WriteByte(currentUart, asciiDate[9]);
+//					UART_WriteByte(currentUart, asciiDate[8]);
+//					UART_WriteBlocking(currentUart, twentyString, sizeof(twentyString) / sizeof(twentyString[0]));
+//					UART_WriteByte(currentUart, asciiDate[11]);
+//					UART_WriteByte(currentUart, asciiDate[10]);
+//					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
+//					vTaskDelay(1000);
+//				}
+//			}
+//			else if(readDateUart3Flag == 1)
+//			{
+//				readDateUart3Flag = 0;
+//				currentUart = DEMO_UART3;
+//				if(ESCTERA != received_data)
+//				{
+//					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[7]);
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[6]);
+//					delay(100);
+//					UART_WriteBlocking(currentUart, lineString, sizeof(lineString) / sizeof(lineString[0]));
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[9]);
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[8]);
+//					delay(100);
+//					UART_WriteBlocking(currentUart, twentyString, sizeof(twentyString) / sizeof(twentyString[0]));
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[11]);
+//					delay(100);
+//					UART_WriteByte(currentUart, asciiDate[10]);
+//					delay(100);
+//					UART_WriteBlocking(currentUart, adjust4, sizeof(adjust4) / sizeof(adjust4[0]));
+//					vTaskDelay(1000);
+//				}
+//			}
+//		}
+//		vTaskDelay(1);
+//		taskYIELD();
+//	}
+//}
+//
+//void chat_task(void *arg)
+//{
+//	static uint8_t received_data;
+//	UART_Type *currentUart;
+//	static uint8_t testBufferOne[60] = {0};
+//	static uint8_t testBufferFour[60] = {0};
+//	static uint8_t TerminalOneString[] = "Terminal 1:\r\n";
+//	static uint8_t TerminalTwoString[] = "Terminal 2:\r\n";
+//	static uint8_t bufferOneCounter = 0;
+//	static uint8_t bufferFourCounter = 0;
+//	for(;;)
+//	{
+//		if(MENU_OP8 == xEventGroupGetBits(Event_uartHandle0) && (MENU_OP8 == xEventGroupGetBits(Event_uartHandle3)))
+//		{
+//			if(xSemaphoreTake(NewDataUart0, portMAX_DELAY))
+//			{
+//				received_data = uart0Data;
+//				currentUart = DEMO_UART0;
+//				if(ENTERTERA != uart0Data)
+//				{
+//					UART_WriteByte(DEMO_UART0, uart0Data);
+//					testBufferOne[bufferOneCounter] = uart0Data;
+//					bufferOneCounter++;
+//				}
+//				else if(ENTERTERA == uart0Data)
+//				{
+//					bufferOneCounter = 0;
+//					UART_WriteBlocking(DEMO_UART0, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
+//					UART_WriteBlocking(DEMO_UART0, TerminalOneString, sizeof(TerminalOneString) / sizeof(TerminalOneString[0]));
+//					UART_WriteBlocking(DEMO_UART0, testBufferOne, sizeof(testBufferOne) / sizeof(testBufferOne[0]));
+//					UART_WriteBlocking(DEMO_UART0, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
+//					UART_WriteBlocking(DEMO_UART3, TerminalOneString, sizeof(TerminalOneString) / sizeof(TerminalOneString[0]));
+//					UART_WriteBlocking(DEMO_UART3, testBufferOne, sizeof(testBufferOne) / sizeof(testBufferOne[0]));
+//					UART_WriteBlocking(DEMO_UART3, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
+//				}
+//			}
+//			if(xSemaphoreTake(NewDataUart3, portMAX_DELAY))
+//			{
+//				received_data = uart3Data;
+//				currentUart = DEMO_UART3;
+//				if(ENTERTERA != uart3Data)
+//				{
+//					UART_WriteByte(DEMO_UART3, uart3Data);
+//					testBufferFour[bufferFourCounter] = uart3Data;
+//					bufferFourCounter++;
+//				}
+//				else if(ENTERTERA == uart3Data)
+//				{
+//					bufferFourCounter = 0;
+//					UART_WriteBlocking(DEMO_UART3, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
+//					UART_WriteBlocking(DEMO_UART3, TerminalTwoString, sizeof(TerminalTwoString) / sizeof(TerminalTwoString[0]));
+//					UART_WriteBlocking(DEMO_UART3, testBufferFour, sizeof(testBufferFour) / sizeof(testBufferFour[0]));
+//					UART_WriteBlocking(DEMO_UART3, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
+//					UART_WriteBlocking(DEMO_UART0, TerminalTwoString, sizeof(TerminalTwoString) / sizeof(TerminalTwoString[0]));
+//					UART_WriteBlocking(DEMO_UART0, testBufferFour, sizeof(testBufferFour) / sizeof(testBufferFour[0]));
+//					UART_WriteBlocking(DEMO_UART0, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
+//				}
+//			}
+//
+//			if((ESCTERA == uart0Data) && (ESCTERA == uart3Data))
+//			{
+//				UART_WriteBlocking(DEMO_UART0, TerminalOneEndingString, sizeof(TerminalOneEndingString) / sizeof(TerminalOneEndingString[0]));
+//				UART_WriteBlocking(DEMO_UART0, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
+//				UART_WriteBlocking(DEMO_UART3, TerminalOneEndingString, sizeof(TerminalOneEndingString) / sizeof(TerminalOneEndingString[0]));
+//				UART_WriteBlocking(DEMO_UART3, NewLineString, sizeof(NewLineString) / sizeof(NewLineString[0]));
+//				delay(600000);
+//				vTaskDelete(chatHandle);
+//			}
+//		}
+//		vTaskDelay(100);
+//	}
+//}
 
 void eco_task(void *arg)
 {

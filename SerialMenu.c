@@ -46,12 +46,12 @@ uint8_t setNewHourString[] = "Escribir hora en formato hh/mm/ss:\r\n";
 uint8_t savedHourString[] = "La hora ha sido cambiada\r\n";
 
 /*Set Date Menu*/
-uint8_t setNewDateString[] = "Escribir fecha en formato dd/mm/aa:\r";
-uint8_t savedDateString[] = "La fecha ha sido cambiada\r";
+uint8_t setNewDateString[] = "Escribir fecha en formato dd/mm/aa:\r\n";
+uint8_t savedDateString[] = "La fecha ha sido cambiada\r\n";
 
 /*Set Format Menu*/
-uint8_t setNewFormatString[] = "Cambio de formato de hora\r";
-uint8_t setNewFormatOptionString[] = "Para Formato 12 hrs presione 1, para formato de 24 hrs presiona 2: \r";
+uint8_t setNewFormatString[] = "Formato cambiado\r\n";
+uint8_t setNewFormatOptionString[] = "Para Formato 12 hrs presione 1, para formato de 24 hrs presiona 2: \r\n";
 
 /*Read Hour Menu*/
 uint8_t readActualHourString[] = "La hora actual es:\r";
@@ -455,122 +455,121 @@ void setHour_task(void *arg)
 	}
 }
 
-
 void setDate_task(void *arg)
 {
-	static uint8_t received_data;
-	UART_Type *currentUart;
+	struct netconn *newconn;
+	newconn = (struct netconn*)(arg);
+	uint8_t option;
+	struct netbuf *buf;
+	void *data;
+	uint16_t len;
 	static uint8_t counter = 0;
+	netconn_write(newconn, setNewDateString, sizeof(setNewDateString), NETCONN_COPY);
 	for(;;)
 	{
-		if(MENU_OP4 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP4 == xEventGroupGetBits(Event_uartHandle3))
+		while((err = netconn_recv(newconn, &buf)) == ERR_OK)
 		{
-			if(xSemaphoreTake(NewDataUart0, portMAX_DELAY))
+			netbuf_data(buf, &data, &len);
+			option = *(char*)data;
+			if('e' != option)
 			{
-				received_data = uart0Data;
-				currentUart = DEMO_UART0;
-				if(ENTERTERA != received_data)
-				{
-					UART_WriteByte(currentUart, received_data);
-					myRtcDataDate[counter] = received_data;
-					counter++;
-				}
-				else if(ENTERTERA == received_data)
-				{
-					counter = 0;
-
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x04, ((myRtcDataDate[0]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[1]-ASCII_NUMBER_MASK));
-					delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x05, ((myRtcDataDate[2]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[3]-ASCII_NUMBER_MASK));
-					delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD,0x06, ((myRtcDataDate[4]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[5]-ASCII_NUMBER_MASK));
-				}
+				myRtcDataDate[counter] = option;
+				counter++;
 			}
-			else if(xSemaphoreTake(NewDataUart3, portMAX_DELAY))
+			else if('e' == option)
 			{
-				received_data = uart3Data;
-				currentUart = DEMO_UART3;
-				if(ENTERTERA != received_data)
+				counter = 0;
+				for(;;)
 				{
-					UART_WriteByte(currentUart, received_data);
-					myRtcDataDate[counter] = received_data;
-					counter++;
+					if(xSemaphoreTake(i2cProtected,1000))
+					{
+						I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x04, ((myRtcDataDate[0]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[1]-ASCII_NUMBER_MASK));
+						delay(1000);
+						I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x05, ((myRtcDataDate[2]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[3]-ASCII_NUMBER_MASK));
+						delay(1000);
+						I2C_RtcWrite(I2C0, RTC_DEVICE_ADD,0x06, ((myRtcDataDate[4]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[5]-ASCII_NUMBER_MASK));
+						xSemaphoreGive(i2cProtected);
+						vTaskDelay(100);
+						break;
+					}
 				}
-				else if(ENTERTERA == received_data)
-				{
-					counter = 0;
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x04, ((myRtcDataDate[0]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[1]-ASCII_NUMBER_MASK));
-					delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x05, ((myRtcDataDate[2]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[3]-ASCII_NUMBER_MASK));
-					delay(1000);
-					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD,0x06, ((myRtcDataDate[4]-ASCII_NUMBER_MASK))<<4 | (myRtcDataDate[5]-ASCII_NUMBER_MASK));
-				}
+				netconn_write(newconn, savedDateString, sizeof(savedDateString), NETCONN_COPY);
+				netconn_write(newconn, "Presione q para salir\r\n",25 , NETCONN_COPY);
 			}
-
+			if('q' == option)
+			{
+				printingMenu((void *)newconn);
+			}
+			while (netbuf_next(buf) >= 0);
+			netbuf_delete(buf);
 		}
-		vTaskDelay(1);
-		taskYIELD();
 	}
 }
-//
-//void hourFormat_task(void *arg)
-//{
-//	static uint8_t received_data;
-//	UART_Type *currentUart;
-//	uint8_t twelveHoursFormat = 0x40;
-//	uint8_t twentyFourHoursFormat = 0x00;
-//	for(;;)
-//	{
-//		if(MENU_OP5 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP5 == xEventGroupGetBits(Event_uartHandle3))
-//		{
-//			if(xSemaphoreTake(NewDataUart0, portMAX_DELAY))
-//			{
-//				received_data = uart0Data;
-//				currentUart = DEMO_UART0;
-//				UART_WriteByte(currentUart, received_data);
-//				if(received_data == 0x31)
-//				{
-//					HOURS_REG_SIZE = (twelveHoursFormat &  (asciiDate[5] | asciiDate[4]) );
-//					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x00);
-//					//	delay(1000);
-//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02,HOURS_REG_SIZE);
-//					delay(1000);
-//					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x80);
-//				}
-//				else if(received_data == 0x32)
-//				{
-//					HOURS_REG_SIZE = ( 0xBF &  (asciiDate[5] | asciiDate[4]));
-//					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x00);
-//					//delay(1000);
-//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02, HOURS_REG_SIZE);
-//					delay(1000);
-//					//I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x00, 0x80);
-//				}
-//			}
-//			else if(xSemaphoreTake(NewDataUart3, portMAX_DELAY))
-//			{
-//				received_data = uart3Data;
-//				currentUart = DEMO_UART3;
-//				UART_WriteByte(currentUart, received_data);
-//				if(received_data == 0x31)
-//				{
-//					HOURS_REG_SIZE = (0x5F |  (asciiDate[5] | asciiDate[4]));
-//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02,HOURS_REG_SIZE);
-//					delay(1000);
-//				}
-//				else if(received_data == 0x32)
-//				{
-//					HOURS_REG_SIZE = (0x1F |  (asciiDate[5] | asciiDate[4]));
-//					I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02,HOURS_REG_SIZE);
-//					delay(1000);
-//				}
-//			}
-//		}
-//		vTaskDelay(1);
-//		taskYIELD();
-//	}
-//}
-//
+
+void hourFormat_task(void *arg)
+{
+	struct netconn *newconn;
+	newconn = (struct netconn*)(arg);
+	uint8_t option;
+	struct netbuf *buf;
+	void *data;
+	uint16_t len;
+	uint8_t twelveHoursFormat = 0x40;
+	uint8_t twentyFourHoursFormat = 0x00;
+	netconn_write(newconn, setNewFormatOptionString, sizeof(setNewFormatOptionString), NETCONN_COPY);
+	for(;;)
+	{
+		while((err = netconn_recv(newconn, &buf)) == ERR_OK)
+		{
+			netbuf_data(buf, &data, &len);
+			option = *(char*)data;
+			if('e' != option)
+			{
+				if('1' == option)
+				{
+					HOURS_REG_SIZE = (twelveHoursFormat &  (asciiDate[5] | asciiDate[4]) );
+					for(;;)
+					{
+						if(xSemaphoreTake(i2cProtected,1000))
+						{
+							I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02,HOURS_REG_SIZE);
+							delay(1000);
+							xSemaphoreGive(i2cProtected);
+							vTaskDelay(100);
+							break;
+						}
+					}
+					netconn_write(newconn, setNewFormatString, sizeof(setNewFormatString), NETCONN_COPY);
+					netconn_write(newconn, "Presione e para salir\r\n",25 , NETCONN_COPY);
+				}
+				else if('2' == option)
+				{
+					HOURS_REG_SIZE = ( twentyFourHoursFormat &  (asciiDate[5] | asciiDate[4]));
+					for(;;)
+					{
+						if(xSemaphoreTake(i2cProtected,1000))
+						{
+							I2C_RtcWrite(I2C0, RTC_DEVICE_ADD, 0x02,HOURS_REG_SIZE);
+							delay(1000);
+							xSemaphoreGive(i2cProtected);
+							vTaskDelay(100);
+							break;
+						}
+					}
+					netconn_write(newconn, setNewFormatString, sizeof(setNewFormatString), NETCONN_COPY);
+					netconn_write(newconn, "Presione e para salir\r\n",25 , NETCONN_COPY);
+				}
+			}
+			else if('e' == option)
+			{
+				printingMenu((void *)newconn);
+			}
+			while (netbuf_next(buf) >= 0);
+			netbuf_delete(buf);
+		}
+	}
+}
+
 //void readHour_task(void *pvParameters)
 //{
 //	static uint8_t received_data;

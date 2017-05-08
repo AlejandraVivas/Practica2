@@ -212,8 +212,10 @@ void menuOptionSelection(void *arg)
 		setDate_task((void *)newconn);
 		break;
 	case '5':
+		hourFormat_task((void *)newconn);
 		break;
 	case '6':
+		readHour_task((void *)newconn);
 		break;
 	case '7':
 		break;
@@ -570,75 +572,47 @@ void hourFormat_task(void *arg)
 	}
 }
 
-//void readHour_task(void *pvParameters)
-//{
-//	static uint8_t received_data;
-//	UART_Type *currentUart;
-//	static uint8_t uart0;
-//	static uint8_t uart3;
-//	uart0 = readHourUart0Flag;
-//	uart3 = readHourUart3Flag;
-//	for(;;)
-//	{
-//		if(MENU_OP6 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP6 == xEventGroupGetBits(Event_uartHandle3))
-//		{
-//			if(uart0 == 1)
-//			{
-//				taskENTER_CRITICAL();
-//				readHourUart0Flag = 0;
-//				taskEXIT_CRITICAL();
-//				received_data = uart0Data;
-//				currentUart = DEMO_UART0;
-//				if(ESCTERA != received_data)
-//				{
-//					UART_WriteByte(currentUart, asciiDate[5]);
-//					UART_WriteByte(currentUart, asciiDate[4]);
-//					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
-//					UART_WriteByte(currentUart, asciiDate[3]);
-//					UART_WriteByte(currentUart, asciiDate[2]);
-//					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
-//					UART_WriteByte(currentUart, asciiDate[1]);
-//					UART_WriteByte(currentUart, asciiDate[0]);
-//					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
-//					vTaskDelay(1000);
-//				}
-//			}
-//			if(uart3 == 1)
-//			{
-//				taskENTER_CRITICAL();
-//				readHourUart3Flag = 0;
-//				taskEXIT_CRITICAL();
-//				received_data = uart3Data;
-//				currentUart = DEMO_UART3;
-//				if(ESCTERA != received_data)
-//				{
-//					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[5]);
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[4]);
-//					delay(100);
-//					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[3]);
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[2]);
-//					delay(100);
-//					UART_WriteBlocking(currentUart, pointsString, sizeof(pointsString) / sizeof(pointsString[0]));
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[1]);
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[0]);
-//					delay(100);
-//					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
-//					vTaskDelay(1000);
-//				}
-//			}
-//		}
-//		vTaskDelay(100);
-//		taskYIELD();
-//	}
-//}
+void readHour_task(void *arg)
+{
+	struct netconn *newconn;
+	newconn = (struct netconn*)(arg);
+	uint8_t option;
+	struct netbuf *buf;
+	void *data;
+	uint16_t len;
+	uint8_t hourD;
+	uint8_t hourU;
+	uint8_t minD;
+	uint8_t minU;
+	uint8_t secD;
+	uint8_t secU;
+	for(;;)
+	{
+		err = netconn_recv(newconn, &buf);
+
+			netbuf_data(buf, &data, &len);
+			option = *(char*)data;
+			hourD = asciiDate[5];
+			hourU = asciiDate[4];
+			minD = asciiDate[3];
+			minU = asciiDate[2];
+			secD = asciiDate[1];
+			secU = asciiDate[0];
+			netconn_write(newconn,"\n\n\n\n\n\n\n\n\n\n\n",sizeof("\n\n\n\n\n\n\n\n\n\n\n"), NETCONN_COPY);
+			netconn_write(newconn, &hourD ,sizeof(hourD), NETCONN_COPY);
+			netconn_write(newconn, &hourU ,sizeof(hourU), NETCONN_COPY);
+			netconn_write(newconn, &minD ,sizeof(minD), NETCONN_COPY);
+			netconn_write(newconn, &minU ,sizeof(minU), NETCONN_COPY);
+			netconn_write(newconn, &secD ,sizeof(secD), NETCONN_COPY);
+			netconn_write(newconn, &secU ,sizeof(secU), NETCONN_COPY);
+			vTaskDelay(1000);
+			if('e' == option)
+			{
+				printingMenu((void *)newconn);
+			}
+	}
+}
+
 //
 //void readDate_task(void *arg)
 //{

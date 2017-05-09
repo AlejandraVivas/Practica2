@@ -38,7 +38,9 @@ uint8_t contentString[] = "\nContenido:\r\n";
 /*Write Memory Menu*/
 uint8_t memoryWriteDirectionString[] = "Direccion de Escritura:\r\n";
 uint8_t lenghtToWriteString[] = "Longitud en bytes:\r\n";
-uint8_t savedTextString[] = "Texto a guardar:\r\n";
+uint8_t memoryWriteDirectionString2[] = "Direccion de Escritura:0x\r";
+uint8_t lenghtToWriteString2[] = "\nLongitud en bytes:\r";
+uint8_t savedTextString[] = "\nTexto a guardar:\r\n";
 uint8_t savedString[] = "Su texto ha sido guardado\r\n";
 
 /*Set hour Menu*/
@@ -350,7 +352,6 @@ void writingI2C_task(void *arg)
 					dataWrited[dataCounter] = option;
 					dataCounter++;
 					if('e' == option){
-						netconn_write(newconn, savedTextString, sizeof(savedTextString), NETCONN_COPY);
 						for(;;)
 						{
 							if(xSemaphoreTake(i2cProtected,1000))
@@ -396,6 +397,11 @@ void writingI2C_task(void *arg)
 					readLenght =  asciiToHex(dataLong);
 					key_pressedMemory = FALSE;
 					key_pressedDataIn = TRUE;
+					netconn_write(newconn, memoryWriteDirectionString2, sizeof(memoryWriteDirectionString2), NETCONN_COPY);
+					netconn_write(newconn, writeDirection, sizeof(writeDirection), NETCONN_COPY);
+					netconn_write(newconn, lenghtToReadString2, sizeof(lenghtToReadString2), NETCONN_COPY);
+					netconn_write(newconn, dataLong, sizeof(dataLong), NETCONN_COPY);
+					netconn_write(newconn, savedTextString, sizeof(savedTextString), NETCONN_COPY);
 				}
 				while (netbuf_next(buf) >= 0);
 				netbuf_delete(buf);
@@ -588,10 +594,6 @@ void readHour_task(void *arg)
 	uint8_t secU;
 	for(;;)
 	{
-		err = netconn_recv(newconn, &buf);
-
-			netbuf_data(buf, &data, &len);
-			option = *(char*)data;
 			hourD = asciiDate[5];
 			hourU = asciiDate[4];
 			minD = asciiDate[3];
@@ -606,10 +608,6 @@ void readHour_task(void *arg)
 			netconn_write(newconn, &secD ,sizeof(secD), NETCONN_COPY);
 			netconn_write(newconn, &secU ,sizeof(secU), NETCONN_COPY);
 			vTaskDelay(1000);
-			if('e' == option)
-			{
-				printingMenu((void *)newconn);
-			}
 	}
 }
 
@@ -750,15 +748,17 @@ void readHour_task(void *arg)
 
 void eco_task(void *arg)
 {
+	struct netconn *newconn;
+	newconn = (struct netconn*)(arg);
+	delay(65000);
+	LCDNokia_clear();
+	delay(65000);
+	LCDNokia_clear();
 	vTaskSuspend(lcdHandle);
-	LCDNokia_clear();
-	LCDNokia_clear();
 	uint8_t option = 0x31;
 	struct netbuf *buf;
 	void *data;
 	uint16_t len;
-	struct netconn *newconn;
-	newconn = (struct netconn*)(arg);
 	for(;;)
 	{
 		netconn_write(newconn, "Press 0 to exit\n\r", 17, NETCONN_COPY);

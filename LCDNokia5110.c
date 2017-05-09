@@ -117,7 +117,7 @@ void LCDNokia_init(void) {
 	LCD_delay();	//REVISAR
 	GPIO_SetPinsOutput(GPIOD, 1 <<RESET_PIN);
 	LCDNokia_writeByte(LCD_CMD, 0x21); /**Tell LCD that extended commands follow*/
-	LCDNokia_writeByte(LCD_CMD, 0xBF); /**Set LCD Vop (Contrast): Try 0xB1(good @ 3.3V) or 0xBF if your display is too dark*/
+	LCDNokia_writeByte(LCD_CMD, 0xB1); /**Set LCD Vop (Contrast): Try 0xB1(good @ 3.3V) or 0xBF if your display is too dark*/
 	LCDNokia_writeByte(LCD_CMD, 0x04); /**Set Temp coefficent*/
 	LCDNokia_writeByte(LCD_CMD, 0x14); /**LCD bias mode 1:48: Try 0x13 or 0x14*/
 	LCDNokia_writeByte(LCD_CMD, 0x20); /**We must send 0x20 before modifying the display control mode*/

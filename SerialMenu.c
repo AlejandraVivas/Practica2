@@ -594,20 +594,20 @@ void readHour_task(void *arg)
 	uint8_t secU;
 	for(;;)
 	{
-			hourD = asciiDate[5];
-			hourU = asciiDate[4];
-			minD = asciiDate[3];
-			minU = asciiDate[2];
-			secD = asciiDate[1];
-			secU = asciiDate[0];
-			netconn_write(newconn,"\n\n\n\n\n\n\n\n\n\n\n",sizeof("\n\n\n\n\n\n\n\n\n\n\n"), NETCONN_COPY);
-			netconn_write(newconn, &hourD ,sizeof(hourD), NETCONN_COPY);
-			netconn_write(newconn, &hourU ,sizeof(hourU), NETCONN_COPY);
-			netconn_write(newconn, &minD ,sizeof(minD), NETCONN_COPY);
-			netconn_write(newconn, &minU ,sizeof(minU), NETCONN_COPY);
-			netconn_write(newconn, &secD ,sizeof(secD), NETCONN_COPY);
-			netconn_write(newconn, &secU ,sizeof(secU), NETCONN_COPY);
-			vTaskDelay(1000);
+		hourD = asciiDate[5];
+		hourU = asciiDate[4];
+		minD = asciiDate[3];
+		minU = asciiDate[2];
+		secD = asciiDate[1];
+		secU = asciiDate[0];
+		netconn_write(newconn,"\n\n\n\n\n\n\n\n\n\n\n",sizeof("\n\n\n\n\n\n\n\n\n\n\n"), NETCONN_COPY);
+		netconn_write(newconn, &hourD ,sizeof(hourD), NETCONN_COPY);
+		netconn_write(newconn, &hourU ,sizeof(hourU), NETCONN_COPY);
+		netconn_write(newconn, &minD ,sizeof(minD), NETCONN_COPY);
+		netconn_write(newconn, &minU ,sizeof(minU), NETCONN_COPY);
+		netconn_write(newconn, &secD ,sizeof(secD), NETCONN_COPY);
+		netconn_write(newconn, &secU ,sizeof(secU), NETCONN_COPY);
+		vTaskDelay(1000);
 	}
 }
 
@@ -854,7 +854,7 @@ void serialTimeLCD( void *pvParameters)
 		LCDNokia_sendChar(asciiDate[11]);
 		LCDNokia_sendChar(asciiDate[10]);
 		vTaskDelay(1000);
-
+		taskYIELD();
 	}
 }
 

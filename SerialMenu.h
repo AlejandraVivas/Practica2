@@ -78,7 +78,7 @@ void writingI2C_task(void *arg);
 void setHour_task(void *arg);
 void setDate_task(void *arg);
 void hourFormat_task(void *arg);
-void readHour_task(void *arg);
+void readHour_task(void *pvParameters);
 void readDate_task(void *arg);
 void chat_task(void *arg);
 void eco_task(void *arg);

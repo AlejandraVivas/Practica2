@@ -217,9 +217,20 @@ void menuOptionSelection(void *arg)
 		hourFormat_task((void *)newconn);
 		break;
 	case '6':
-		readHour_task((void *)newconn);
+		xTaskCreate(readHour_task, "ReadHour_Task", 360, (void *)newconn, 3, &readHourHandle);
+		err = netconn_recv(newconn, &buf);
+		netbuf_data(buf, &data, &len);
+		option = *(char*)data;
+		if('e'== option)
+		{
+			vTaskDelete(readHourHandle);
+			delay(65000);
+			printingMenu((void *)newconn);
+		}
+		netbuf_delete(buf);
 		break;
 	case '7':
+		readDate_task((void *)newconn);
 		break;
 	case '8':
 		break;
@@ -578,14 +589,10 @@ void hourFormat_task(void *arg)
 	}
 }
 
-void readHour_task(void *arg)
+void readHour_task(void *pvParameters)
 {
 	struct netconn *newconn;
-	newconn = (struct netconn*)(arg);
-	uint8_t option;
-	struct netbuf *buf;
-	void *data;
-	uint16_t len;
+	newconn = (struct netconn*)(pvParameters);
 	uint8_t hourD;
 	uint8_t hourU;
 	uint8_t minD;
@@ -603,75 +610,62 @@ void readHour_task(void *arg)
 		netconn_write(newconn,"\n\n\n\n\n\n\n\n\n\n\n",sizeof("\n\n\n\n\n\n\n\n\n\n\n"), NETCONN_COPY);
 		netconn_write(newconn, &hourD ,sizeof(hourD), NETCONN_COPY);
 		netconn_write(newconn, &hourU ,sizeof(hourU), NETCONN_COPY);
+		netconn_write(newconn, ":" ,sizeof(":"), NETCONN_COPY);
 		netconn_write(newconn, &minD ,sizeof(minD), NETCONN_COPY);
 		netconn_write(newconn, &minU ,sizeof(minU), NETCONN_COPY);
+		netconn_write(newconn, ":" ,sizeof(":"), NETCONN_COPY);
 		netconn_write(newconn, &secD ,sizeof(secD), NETCONN_COPY);
 		netconn_write(newconn, &secU ,sizeof(secU), NETCONN_COPY);
 		vTaskDelay(1000);
+		taskYIELD();
 	}
 }
 
-//
-//void readDate_task(void *arg)
-//{
-//	static uint8_t received_data;
-//	UART_Type *currentUart;
-//	for(;;)
-//	{
-//		if(MENU_OP7 == xEventGroupGetBits(Event_uartHandle0) || MENU_OP7 == xEventGroupGetBits(Event_uartHandle3))
-//		{
-//			if(readDateUart0Flag  == 1)
-//			{
-//				received_data = uart0Data;
-//				readDateUart0Flag = 0;
-//				currentUart = DEMO_UART0;
-//				if(ESCTERA != received_data)
-//				{
-//					UART_WriteByte(currentUart, asciiDate[7]);
-//					UART_WriteByte(currentUart, asciiDate[6]);
-//					UART_WriteBlocking(currentUart, lineString, sizeof(lineString) / sizeof(lineString[0]));
-//					UART_WriteByte(currentUart, asciiDate[9]);
-//					UART_WriteByte(currentUart, asciiDate[8]);
-//					UART_WriteBlocking(currentUart, twentyString, sizeof(twentyString) / sizeof(twentyString[0]));
-//					UART_WriteByte(currentUart, asciiDate[11]);
-//					UART_WriteByte(currentUart, asciiDate[10]);
-//					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
-//					vTaskDelay(1000);
-//				}
-//			}
-//			else if(readDateUart3Flag == 1)
-//			{
-//				readDateUart3Flag = 0;
-//				currentUart = DEMO_UART3;
-//				if(ESCTERA != received_data)
-//				{
-//					UART_WriteBlocking(currentUart, adjust2, sizeof(adjust2) / sizeof(adjust2[0]));
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[7]);
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[6]);
-//					delay(100);
-//					UART_WriteBlocking(currentUart, lineString, sizeof(lineString) / sizeof(lineString[0]));
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[9]);
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[8]);
-//					delay(100);
-//					UART_WriteBlocking(currentUart, twentyString, sizeof(twentyString) / sizeof(twentyString[0]));
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[11]);
-//					delay(100);
-//					UART_WriteByte(currentUart, asciiDate[10]);
-//					delay(100);
-//					UART_WriteBlocking(currentUart, adjust4, sizeof(adjust4) / sizeof(adjust4[0]));
-//					vTaskDelay(1000);
-//				}
-//			}
-//		}
-//		vTaskDelay(1);
-//		taskYIELD();
-//	}
-//}
+
+void readDate_task(void *arg)
+{
+	struct netconn *newconn;
+	newconn = (struct netconn*)(arg);
+	uint8_t option;
+	struct netbuf *buf;
+	void *data;
+	uint16_t len;
+	uint8_t dayD;
+	uint8_t dayU;
+	uint8_t monthD;
+	uint8_t monthU;
+	uint8_t yearD;
+	uint8_t yearU;
+	for(;;)
+	{
+		dayD = asciiDate[7];
+		dayU = asciiDate[6];
+		monthD = asciiDate[9];
+		monthU = asciiDate[8];
+		yearD = asciiDate[10];
+		yearU = asciiDate[11];
+		netconn_write(newconn, &dayD ,sizeof(dayD), NETCONN_COPY);
+		netconn_write(newconn, &dayU ,sizeof(dayU), NETCONN_COPY);
+		netconn_write(newconn, "/" ,sizeof("/"), NETCONN_COPY);
+		netconn_write(newconn, &monthD ,sizeof(monthD), NETCONN_COPY);
+		netconn_write(newconn, &monthU ,sizeof(monthU), NETCONN_COPY);
+		netconn_write(newconn, "/20" ,sizeof("/20"), NETCONN_COPY);
+		netconn_write(newconn, &yearU ,sizeof(yearU), NETCONN_COPY);
+		netconn_write(newconn, &yearD ,sizeof(yearD), NETCONN_COPY);
+		netconn_write(newconn, "Presiona e para salir" ,sizeof("Presiona e para salir"), NETCONN_COPY);
+
+		while((err = netconn_recv(newconn, &buf)) == ERR_OK)
+		{
+			netbuf_data(buf, &data, &len);
+			option = *(char*)data;
+			if('e' == option)
+			{
+				printingMenu((void *)newconn);
+			}
+		}
+
+	}
+}
 //
 //void chat_task(void *arg)
 //{
